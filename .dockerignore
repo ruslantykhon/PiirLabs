@@ -1,0 +1,17 @@
+.venv/
+.git/
+.idea/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.key
+.env
+passwd
+deploy/passwd
+deploy/.env
+docs/
+tests/

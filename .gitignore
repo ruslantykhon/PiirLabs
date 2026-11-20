@@ -2,8 +2,13 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.key
 .env
 passwd
 deploy/passwd
 deploy/acl
 .venv/
+.idea/

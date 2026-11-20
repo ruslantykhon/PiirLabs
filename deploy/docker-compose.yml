@@ -1,0 +1,120 @@
+x-python-service: &python-service
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  restart: unless-stopped
+  depends_on:
+    broker:
+      condition: service_healthy
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -m
+      - iiot.services.healthcheck
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 20s
+
+services:
+  broker:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:1883:1883"
+
+    environment:
+      MQTT_PASSWORD_INGEST: ${INGEST_PASSWORD}
+
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./passwd:/mosquitto/config/passwd:ro
+      - ./acl:/mosquitto/config/acl:ro
+      - broker_data:/mosquitto/data
+
+    healthcheck:
+      test: [ "CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -p 1883 -u ingest -P \"$$MQTT_PASSWORD_INGEST\" -t health/broker -m ok -q 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  gateway1:
+    <<: *python-service
+    command:
+      - python
+      - -m
+      - iiot.services.gateway_service
+
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: 1883
+      MQTT_USER: pump-01
+      MQTT_PASSWORD: ${PUMP01_PASSWORD}
+      SITE: kyiv
+      LINE: line1
+      DEVICE_ID: pump-01
+      INTERVAL: 1.0
+      SIGNING_KEY: ${SIGNING_KEY:-}
+      FAULT_AFTER: 15
+      HEALTH_FILE: /tmp/healthy
+
+  gateway2:
+    <<: *python-service
+    command:
+      - python
+      - -m
+      - iiot.services.gateway_service
+
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: 1883
+      MQTT_USER: pump-02
+      MQTT_PASSWORD: ${PUMP02_PASSWORD}
+      SITE: kyiv
+      LINE: line1
+      DEVICE_ID: pump-02
+      INTERVAL: 1.0
+      SIGNING_KEY: ${SIGNING_KEY:-}
+      FAULT_AFTER: ""
+      HEALTH_FILE: /tmp/healthy
+
+  ingest:
+    <<: *python-service
+    command:
+      - python
+      - -m
+      - iiot.services.ingest_service
+
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: 1883
+      MQTT_USER: ingest
+      MQTT_PASSWORD: ${INGEST_PASSWORD}
+      SIGNING_KEY: ${SIGNING_KEY:-}
+      DB_PATH: /data/iiot.db
+      HEALTH_FILE: /tmp/healthy
+
+    volumes:
+      - sqlite_data:/data
+
+  alerts:
+    <<: *python-service
+    command:
+      - python
+      - -m
+      - iiot.services.alert_service
+
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: 1883
+      MQTT_USER: alerts
+      MQTT_PASSWORD: ${ALERTS_PASSWORD}
+      SIGNING_KEY: ${SIGNING_KEY:-}
+      HEALTH_FILE: /tmp/healthy
+
+volumes:
+  broker_data:
+  sqlite_data:
